@@ -52,6 +52,14 @@ enum Command {
     Log,
     /// Show changes since the last commit
     Status,
+    /// Switch to a branch or restore the files of a past commit
+    Checkout {
+        /// Branch name, commit hash (full or abbreviated), or HEAD
+        target: String,
+        /// Discard local changes that would be overwritten
+        #[arg(short, long)]
+        force: bool,
+    },
 }
 
 #[derive(Args)]
@@ -94,5 +102,6 @@ fn run(cli: Cli) -> anyhow::Result<()> {
         Command::Commit { message } => commands::commit(&message),
         Command::Log => commands::log(),
         Command::Status => commands::status(),
+        Command::Checkout { target, force } => commands::checkout(&target, force),
     }
 }

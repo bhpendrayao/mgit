@@ -26,8 +26,9 @@ $ git --git-dir=.mgit fsck --full       # and validates every object
 | `mgit commit -m <msg>` | Record a snapshot with history |
 | `mgit log` | Show commit history |
 | `mgit status` | Show new, modified, and deleted files |
+| `mgit checkout [--force] <branch\|commit>` | Switch to a branch or restore a past commit |
 
-Objects can be referenced by full hash, abbreviated hash (4+ characters), or `HEAD`.
+Objects can be referenced by full hash, abbreviated hash (4+ characters), a branch name, or `HEAD`.
 
 ## How it works
 
@@ -42,6 +43,18 @@ by the SHA-1 hash of its contents:
 Each object is stored as `<type> <size>\0<data>`, zlib-compressed, at
 `.mgit/objects/<first 2 hex chars>/<remaining 38>`. Branches are files under
 `refs/heads/` holding a commit hash, and `HEAD` points at the current branch.
+
+### Checkout
+
+`checkout` compares three snapshots: the current commit, the target commit,
+and the files on disk. It deletes files that exist only in the current commit,
+rewrites files whose content differs from the target (restoring executable
+bits), and leaves untracked files alone. Before touching anything, it refuses
+to run if uncommitted changes would be lost, unless `--force` is given.
+
+Checking out a branch name keeps HEAD attached (`ref: refs/heads/main`);
+checking out a commit hash puts HEAD in **detached** mode, pointing directly
+at the commit, just like Git.
 
 `mgit` uses `.mgit/` instead of `.git/` so it can safely run inside an existing
 Git repository without touching it.
@@ -76,12 +89,14 @@ cargo test
 ```
 
 Unit tests check that hashes match real Git byte-for-byte (for example, the
-well-known empty tree hash `4b825dc6…`). CI runs formatting, Clippy, and tests on
+well-known empty tree hash `4b825dc6…`). Integration tests in `tests/cli.rs`
+run the compiled binary end to end, covering checkout, detached HEAD, and the
+safety check that protects uncommitted work. CI runs formatting, Clippy, and tests on
 Linux, macOS, and Windows.
 
 ## Roadmap
 
-- [ ] `checkout` to restore a previous commit
+- [x] `checkout` to restore a previous commit
 - [ ] Branches (`branch`, `switch`)
 - [ ] A staging area (`add`) using Git's index format
 - [ ] `diff` between commits

@@ -127,8 +127,15 @@ fn file_mode(_meta: &fs::Metadata) -> &'static str {
     MODE_FILE
 }
 
-/// Flatten a stored tree into `path -> blob hash`.
-pub fn flatten(git_dir: &Path, tree_hash: &str) -> Result<BTreeMap<String, String>> {
+/// A file recorded in a commit: its blob hash and mode.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileEntry {
+    pub hash: String,
+    pub mode: String,
+}
+
+/// Flatten a stored tree into `path -> file entry`.
+pub fn flatten(git_dir: &Path, tree_hash: &str) -> Result<BTreeMap<String, FileEntry>> {
     let mut out = BTreeMap::new();
     flatten_into(git_dir, tree_hash, "", &mut out)?;
     Ok(out)
@@ -138,7 +145,7 @@ fn flatten_into(
     git_dir: &Path,
     tree_hash: &str,
     prefix: &str,
-    out: &mut BTreeMap<String, String>,
+    out: &mut BTreeMap<String, FileEntry>,
 ) -> Result<()> {
     let obj = Object::read(git_dir, tree_hash)?;
     for e in parse(&obj.data)? {
@@ -146,7 +153,13 @@ fn flatten_into(
         if e.is_dir() {
             flatten_into(git_dir, &e.hash, &format!("{path}/"), out)?;
         } else {
-            out.insert(path, e.hash);
+            out.insert(
+                path,
+                FileEntry {
+                    hash: e.hash,
+                    mode: e.mode,
+                },
+            );
         }
     }
     Ok(())
@@ -176,6 +189,20 @@ fn scan_into(dir: &Path, prefix: &str, out: &mut BTreeMap<String, String>) -> Re
             out.insert(rel, blob_hash(&fs::read(&path)?));
         }
     }
+    Ok(())
+}
+
+/// Apply a stored mode to a file on disk (no-op on non-Unix systems).
+#[cfg(unix)]
+pub fn set_mode(path: &Path, mode: &str) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    let bits = if mode == MODE_EXEC { 0o755 } else { 0o644 };
+    fs::set_permissions(path, fs::Permissions::from_mode(bits))?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+pub fn set_mode(_path: &Path, _mode: &str) -> Result<()> {
     Ok(())
 }
 
